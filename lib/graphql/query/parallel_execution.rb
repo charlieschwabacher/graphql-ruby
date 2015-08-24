@@ -1,35 +1,20 @@
 module GraphQL
   class Query
     # Utilize Celluloid::Future to run field resolution in parallel.
-    #
-    # Basically the approach is:
-    #  - As you start to resolve a field, increment the total field counter
-    #  - When a field ends, if it was the last one, trigger to collect the whole response
-    #  - On error, spit the error out and raise it like normal
     class ParallelExecution < GraphQL::Query::BaseExecution
       attr_reader :total_field_counter
       def initialize
         Celluloid.boot unless Celluloid.running?
-        @total_field_counter = 0
-        @condition = Celluloid::Condition.new
+        @pool = ExecutionWorker.pool # default size = number of CPU cores
       end
 
-      def increment
-        @total_field_counter += 1
-      end
-
-      def wait
-        @condition.wait
-      end
-
-      def signal
-        @condition.signal
+      def future(&block)
+        @pool.future.resolve(block)
       end
 
       class OperationResolution < GraphQL::Query::SerialExecution::OperationResolution
         def result
           result_futures = super
-          execution_strategy.wait
           finish_all_futures(result_futures)
         end
 
@@ -61,26 +46,14 @@ module GraphQL
       end
 
       class SelectionResolution < GraphQL::Query::SerialExecution::SelectionResolution
-        # For each field, tell the execution strategy to wait for one more,
-        # Then start async resolution.
-        #
-        # After the resolution, if that field is the last one,
-        # tell the execution strategy that we're finished, it should clean up data now.
+        # For each field, start async resolution.
         #
         # If there's an error during resolution, it will get raised again during `finish_all_futures`.
         # @return [Array<Celluloid::Future>] Futures for the field resolve values
         def result
           selections.map do |ast_field|
-            field_idx = execution_strategy.increment
-            Celluloid::Future.new do
-              begin
-                field_value = resolve_field(ast_field)
-              ensure
-                if field_idx == execution_strategy.total_field_counter
-                  execution_strategy.signal
-                end
-                field_value
-              end
+            execution_strategy.future do
+              field_value = resolve_field(ast_field)
             end
           end
         end
@@ -93,6 +66,13 @@ module GraphQL
       end
 
       class FragmentSpreadResolution < GraphQL::Query::SerialExecution::FragmentSpreadResolution
+      end
+
+      class ExecutionWorker
+        include Celluloid
+        def resolve(proc)
+          proc.call
+        end
       end
     end
   end

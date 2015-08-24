@@ -12,8 +12,7 @@ describe GraphQL::Query::ParallelExecution do
 
     it "runs them in parallel, not in sequence" do
       elapsed = Benchmark.realtime { result }
-      assert elapsed < 1, "It takes less that the sum of all sleeps"
-      assert elapsed < 0.4, "It runs all the sleeps at the same time"
+      assert elapsed < 0.5, "It takes less that the sum of all sleeps"
 
       expected = { "data" => {
         "slow1" => { "slow1" => 1, "slow2" => 1, "slows" => [

@@ -3,7 +3,7 @@ def create_slow_field
   GraphQL::Field.define do
     type(types.Int)
     resolve -> (obj, args, ctx) {
-      sleep 0.3
+      sleep 0.2
       1
     }
   end
