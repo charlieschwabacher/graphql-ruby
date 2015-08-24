@@ -25,12 +25,5 @@ describe GraphQL::Query::ParallelExecution do
       }}
       assert_equal expected, result, "It renders the right result"
     end
-
-    it "uses the pool size setting" do
-      GraphQL::Query::ParallelExecution.pool_size = 20
-      elapsed = Benchmark.realtime { result }
-      assert elapsed < 0.4, "All sleeps are concurrent"
-      GraphQL::Query::ParallelExecution.pool_size = Celluloid.cores
-    end
   end
 end
