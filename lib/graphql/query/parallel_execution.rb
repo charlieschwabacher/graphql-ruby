@@ -11,11 +11,14 @@ module GraphQL
       def initialize
         # Why isn't `require "celluloid/current"` enough here?
         Celluloid.boot unless Celluloid.running?
-        @pool = ExecutionWorker.pool(size: self.class.pool_size)
+      end
+
+      def pool
+        Celluloid::Actor[:"execution_worker-size-#{self.class.pool_size}"] ||= ExecutionWorker.pool(size: self.class.pool_size)
       end
 
       def future(&block)
-        @pool.future.resolve(block)
+        pool.future.resolve(block)
       end
 
       class OperationResolution < GraphQL::Query::SerialExecution::OperationResolution
