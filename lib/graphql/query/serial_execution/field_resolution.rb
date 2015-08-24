@@ -18,6 +18,16 @@ module GraphQL
         private
 
         def result_value
+          value = get_raw_value
+          return nil if value.nil?
+
+          resolved_type = field.type.kind.resolve(field.type, value)
+          strategy_class = GraphQL::Query::ValueResolution.get_strategy_for_kind(resolved_type.kind)
+          result_strategy = strategy_class.new(value, resolved_type, target, parent_type, ast_node, query, execution_strategy)
+          result_strategy.result
+        end
+
+        def get_raw_value
           value = field.resolve(target, arguments, query.context)
           return nil if value.nil?
 
@@ -28,11 +38,7 @@ module GraphQL
               raise("Couldn't resolve field '#{ast_node.name}' to #{target.class} '#{target}' (resulted in #{err})")
             end
           end
-
-          resolved_type = field.type.kind.resolve(field.type, value)
-          strategy_class = GraphQL::Query::ValueResolution.get_strategy_for_kind(resolved_type.kind)
-          result_strategy = strategy_class.new(value, resolved_type, target, parent_type, ast_node, query, execution_strategy)
-          result_strategy.result
+          value
         end
       end
     end
