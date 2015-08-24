@@ -22,19 +22,15 @@ module GraphQL
         @condition.wait
       end
 
-      def signal(arg = nil)
-        @condition.signal(arg)
+      def signal
+        @condition.signal
       end
 
       class OperationResolution < GraphQL::Query::SerialExecution::OperationResolution
         def result
           result_futures = super
-          error = execution_strategy.wait
-          if error
-            raise(error)
-          else
-            finish_all_futures(result_futures)
-          end
+          execution_strategy.wait
+          finish_all_futures(result_futures)
         end
 
         # Recurse over `result_object`, finding any futures and
@@ -71,7 +67,7 @@ module GraphQL
         # After the resolution, if that field is the last one,
         # tell the execution strategy that we're finished, it should clean up data now.
         #
-        # Handle errors by sending them to the execution strategy.
+        # If there's an error during resolution, it will get raised again during `finish_all_futures`.
         # @return [Array<Celluloid::Future>] Futures for the field resolve values
         def result
           selections.map do |ast_field|
@@ -79,12 +75,11 @@ module GraphQL
             Celluloid::Future.new do
               begin
                 field_value = resolve_field(ast_field)
+              ensure
                 if field_idx == execution_strategy.total_field_counter
                   execution_strategy.signal
                 end
                 field_value
-              rescue StandardError => e
-                execution_strategy.signal(e)
               end
             end
           end
