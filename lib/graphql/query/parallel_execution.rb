@@ -2,10 +2,16 @@ module GraphQL
   class Query
     # Utilize Celluloid::Future to run field resolution in parallel.
     class ParallelExecution < GraphQL::Query::BaseExecution
+      class << self
+        attr_accessor :pool_size
+      end
+      self.pool_size = Celluloid.cores
+
       attr_reader :total_field_counter
       def initialize
+        # Why isn't `require "celluloid/current"` enough here?
         Celluloid.boot unless Celluloid.running?
-        @pool = ExecutionWorker.pool # default size = number of CPU cores
+        @pool = ExecutionWorker.pool(size: self.class.pool_size)
       end
 
       def future(&block)

@@ -12,7 +12,7 @@ describe GraphQL::Query::ParallelExecution do
 
     it "runs them in parallel, not in sequence" do
       elapsed = Benchmark.realtime { result }
-      assert elapsed < 0.5, "It takes less that the sum of all sleeps"
+      assert elapsed < 0.7, "It takes less that the sum of all sleeps"
 
       expected = { "data" => {
         "slow1" => { "slow1" => 1, "slow2" => 1, "slows" => [
@@ -24,6 +24,13 @@ describe GraphQL::Query::ParallelExecution do
         "slow2" => { "slow1" => 1, "slow2" => 1, "lastSlow" => 1},
       }}
       assert_equal expected, result, "It renders the right result"
+    end
+
+    it "uses the pool size setting" do
+      GraphQL::Query::ParallelExecution.pool_size = 20
+      elapsed = Benchmark.realtime { result }
+      assert elapsed < 0.4, "All sleeps are concurrent"
+      GraphQL::Query::ParallelExecution.pool_size = Celluloid.cores
     end
   end
 end
