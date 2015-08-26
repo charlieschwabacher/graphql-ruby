@@ -9,8 +9,8 @@ module GraphQL
       end
 
       def pool
-        Celluloid::Actor[:execution_worker] ||= ExecutionPool.run!
-        Celluloid::Actor[:execution_worker][:execution_worker_pool]
+        @pool ||= ExecutionPool.run!
+        @pool[:execution_worker_pool]
       end
 
       def future(&block)
@@ -20,7 +20,9 @@ module GraphQL
       class OperationResolution < GraphQL::Query::SerialExecution::OperationResolution
         def result
           result_futures = super
-          finish_all_futures(result_futures)
+          finished_result = finish_all_futures(result_futures)
+          execution_strategy.pool.terminate
+          finished_result
         end
 
         # Recurse over `result_object`, finding any futures and
@@ -81,7 +83,7 @@ module GraphQL
       end
 
       class ExecutionPool < Celluloid::Supervision::Container
-        pool ExecutionWorker, as: :execution_worker_pool, size: 10
+        pool ExecutionWorker, as: :execution_worker_pool
       end
     end
   end
